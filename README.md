@@ -161,3 +161,5 @@ We are still working on improving the code reliability. For any technical issues
 
 For commercial inquiries, please contact Shaojie SHEN <eeshaojieATust.hk>
 # S-msckf1
+# vins_mono_noted
+# vins_mono_noted
