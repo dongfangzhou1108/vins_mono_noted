@@ -94,6 +94,9 @@ void FeatureTracker::readImage(const cv::Mat &_img, double _cur_time)
     else
         img = _img;
 
+    /**
+     * @brief for the first img
+     */    
     if (forw_img.empty())
     {
         prev_img = cur_img = forw_img = img;
@@ -105,6 +108,9 @@ void FeatureTracker::readImage(const cv::Mat &_img, double _cur_time)
 
     forw_pts.clear();
 
+    /**
+     * @brief if cur_pts not empty, use cv func calcOpticalFlowPyrLK for feature tarcking
+     */    
     if (cur_pts.size() > 0)
     {
         TicToc t_o;
@@ -127,6 +133,12 @@ void FeatureTracker::readImage(const cv::Mat &_img, double _cur_time)
     for (auto &n : track_cnt)
         n++;
 
+    /**
+     * @brief use F Matrix, to reject features calced by calcOpticalFlowPyrLK;
+	 * 				then use mask to reject features to space it regularly;
+	 * 				then use cv func goodFeaturesToTrack() to calc new features;
+	 * 				finally calc the normalized point and velocity of pixel;
+     */    
     if (PUB_THIS_FRAME)
     {
         rejectWithF();

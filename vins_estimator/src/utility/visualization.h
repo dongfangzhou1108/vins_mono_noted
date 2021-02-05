@@ -29,6 +29,11 @@ extern nav_msgs::Path path;
 extern ros::Publisher pub_pose_graph;
 extern int IMAGE_ROW, IMAGE_COL;
 
+/**
+ * @brief  set Publisher parameter and rviz parameter for visualization
+ * @param {NodeHandle} &n
+ * @return {*}
+ */
 void registerPub(ros::NodeHandle &n);
 
 void pubLatestOdometry(const Eigen::Vector3d &P, const Eigen::Quaterniond &Q, const Eigen::Vector3d &V, const std_msgs::Header &header);

@@ -49,17 +49,26 @@ class MarginalizationInfo
     ~MarginalizationInfo();
     int localSize(int size) const;
     int globalSize(int size) const;
+    /**
+     * @brief  map with parameter_blocks address and size in parameter_block_size
+	 * 					map with drop_set parameter_blocks address and 0 in parameter_block_idx
+     * @param {ResidualBlockInfo} *residual_block_info
+     * @return {*}
+     */    
     void addResidualBlockInfo(ResidualBlockInfo *residual_block_info);
+    /**
+     * @brief  calc Jacobian (factor -> Evaluate) and copy marg parameter_blocks to parameter_block_data
+     */    
     void preMarginalize();
     void marginalize();
     std::vector<double *> getParameterBlocks(std::unordered_map<long, double *> &addr_shift);
 
-    std::vector<ResidualBlockInfo *> factors;
-    int m, n;
-    std::unordered_map<long, int> parameter_block_size; //global size
+    std::vector<ResidualBlockInfo *> factors; //IMUFactor or ProjectionFactor using in marg
+    int m, n; //m: marg size; n: keep size
+    std::unordered_map<long, int> parameter_block_size; //global size (added: which map with parameter_blocks address and size)
     int sum_block_size;
-    std::unordered_map<long, int> parameter_block_idx; //local size
-    std::unordered_map<long, double *> parameter_block_data;
+    std::unordered_map<long, int> parameter_block_idx; //local size (added: which map with drop_set address and size)
+    std::unordered_map<long, double *> parameter_block_data; // map address with the parameter_blocks which join the marg
 
     std::vector<int> keep_block_size; //global size
     std::vector<int> keep_block_idx;  //local size

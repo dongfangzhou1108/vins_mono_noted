@@ -32,6 +32,12 @@ class FeatureTracker
 
     void readImage(const cv::Mat &_img,double _cur_time);
 
+    /**
+     * @brief sort by track_cnt, use img mask, keep the feature with more track_cnt, 
+	 * 				  move away features which mask != 255, to keep features space regularly
+     * @param {*}
+     * @return {*}
+     */    
     void setMask();
 
     void addPoints();
@@ -42,6 +48,13 @@ class FeatureTracker
 
     void showUndistortion(const string &name);
 
+    /**
+     * @brief use cv func findFundamentalMat() to reject feature match
+	 * 				  after excat feature, use func liftProjective(), through camera model to disort feature pixel 
+	 * 				  (lift to normolized plane and then project to pixel), move away features which not feat F matrix
+     * @param {*}
+     * @return {*}
+     */    
     void rejectWithF();
 
     void undistortedPoints();

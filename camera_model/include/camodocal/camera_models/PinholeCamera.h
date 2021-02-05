@@ -135,7 +135,7 @@ public:
 private:
     Parameters mParameters;
 
-    double m_inv_K11, m_inv_K13, m_inv_K22, m_inv_K23;
+    double m_inv_K11, m_inv_K13, m_inv_K22, m_inv_K23; // K11=1/fx;K13=-cx/fx;K22=1/fy;K23=-cy/fy
     bool m_noDistortion;
 };
 

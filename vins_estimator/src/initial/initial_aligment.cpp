@@ -1,5 +1,10 @@
 #include "initial_alignment.h"
 
+/**
+ * @brief  the beginning ot visualInitialAlign: compute bias of gyro,and repragrate with new bias_gyro
+ * @param {map<double,ImageFrame>} &all_image_frame
+ * @return {*}
+ */
 void solveGyroscopeBias(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs)
 {
     Matrix3d A;
@@ -29,7 +34,7 @@ void solveGyroscopeBias(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs)
     for (int i = 0; i <= WINDOW_SIZE; i++)
         Bgs[i] += delta_bg;
 
-    for (frame_i = all_image_frame.begin(); next(frame_i) != all_image_frame.end( ); frame_i++)
+    for (frame_i = all_image_frame.begin(); next(frame_i) != all_image_frame.end( ); frame_i++) //repropagate for all data
     {
         frame_j = next(frame_i);
         frame_j->second.pre_integration->repropagate(Vector3d::Zero(), Bgs[0]);
@@ -37,12 +42,15 @@ void solveGyroscopeBias(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs)
 }
 
 
+/**
+ * @brief  calc tangent vector of gravity 
+ */
 MatrixXd TangentBasis(Vector3d &g0)
 {
     Vector3d b, c;
     Vector3d a = g0.normalized();
     Vector3d tmp(0, 0, 1);
-    if(a == tmp)
+    if(a == tmp) //if g vector is z axis
         tmp << 1, 0, 0;
     b = (tmp - a * (a.transpose() * tmp)).normalized();
     c = a.cross(b);
@@ -52,6 +60,9 @@ MatrixXd TangentBasis(Vector3d &g0)
     return bc;
 }
 
+/**
+ * @brief  refine gravity vector
+ */
 void RefineGravity(map<double, ImageFrame> &all_image_frame, Vector3d &g, VectorXd &x)
 {
     Vector3d g0 = g.normalized() * G.norm();
@@ -67,7 +78,7 @@ void RefineGravity(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vector
 
     map<double, ImageFrame>::iterator frame_i;
     map<double, ImageFrame>::iterator frame_j;
-    for(int k = 0; k < 4; k++)
+    for(int k = 0; k < 4; k++) //only change 0.001 in gravity orietation
     {
         MatrixXd lxly(3, 2);
         lxly = TangentBasis(g0);
@@ -117,15 +128,20 @@ void RefineGravity(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vector
             x = A.ldlt().solve(b);
             VectorXd dg = x.segment<2>(n_state - 3);
             g0 = (g0 + lxly * dg).normalized() * G.norm();
+			ROS_DEBUG("refined gravity is %f, %f, %f", g0(0), g0(1), g0(2));
             //double s = x(n_state - 1);
     }   
     g = g0;
 }
 
+/**
+ * @brief  calc velocity, scale and gravity in reference frame;
+ * 					follow (35)fomular in  Huakun Cui doc, we can't optimaze the Tic;
+ */
 bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, VectorXd &x)
 {
     int all_frame_count = all_image_frame.size();
-    int n_state = all_frame_count * 3 + 3 + 1;
+    int n_state = all_frame_count * 3 + 3 + 1; // 3 * frame_velocity + gravity + scale 
 
     MatrixXd A{n_state, n_state};
     A.setZero();
@@ -186,7 +202,7 @@ bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vect
         return false;
     }
 
-    RefineGravity(all_image_frame, g, x);
+    RefineGravity(all_image_frame, g, x); //x is state of velocity, gravity and scale
     s = (x.tail<1>())(0) / 100.0;
     (x.tail<1>())(0) = s;
     ROS_DEBUG_STREAM(" refine     " << g.norm() << " " << g.transpose());
@@ -196,6 +212,10 @@ bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vect
         return true;
 }
 
+/**
+ * @brief  using func: solveGyroscopeBias() to clac bias_gyro;
+ * 					to calc velocity, scale, and gravity in LinearAlignment(), and refine gravity in RefineGravity()
+ */
 bool VisualIMUAlignment(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs, Vector3d &g, VectorXd &x)
 {
     solveGyroscopeBias(all_image_frame, Bgs);

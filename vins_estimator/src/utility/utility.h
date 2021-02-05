@@ -27,6 +27,11 @@ class Utility
         return dq;
     }
 
+    /**
+     * @brief  calc Matrix3*3 skew
+     * @param {*}
+     * @return {*}
+     */    
     template <typename Derived>
     static Eigen::Matrix<typename Derived::Scalar, 3, 3> skewSymmetric(const Eigen::MatrixBase<Derived> &q)
     {

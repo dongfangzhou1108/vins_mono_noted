@@ -1,3 +1,16 @@
+/*
+ * @Author: your name
+ * @Date: 1970-01-01 08:00:00
+ * @LastEditTime: 2021-01-27 17:08:53
+ * @LastEditors: Please set LastEditors
+ * @Description: this is feature tracker node;
+ * 								 use cv func to clac feature match;
+ * 								 use F Matrix and mask to reject features and space features regularly;
+ * 								 use cv func to exact new features;
+ * 								 probably publish 10hz, 0.5 * img freq;
+ * 								 publish the normalized plane pts as point cloud with its velocity + id + pixel;
+ * @FilePath: /VINS-mono/feature_tracker/src/feature_tracker_node.cpp
+ */
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/image_encodings.h>
@@ -47,11 +60,15 @@ void img_callback(const sensor_msgs::ImageConstPtr &img_msg)
         return;
     }
     last_image_time = img_msg->header.stamp.toSec();
-    // frequency control
+
+    /**
+     * @brief frequency control: decide whther pub this frame
+	 * 				  if pub this frame feature, pub_count++ in back code
+     */    
     if (round(1.0 * pub_count / (img_msg->header.stamp.toSec() - first_image_time)) <= FREQ)
     {
         PUB_THIS_FRAME = true;
-        // reset the frequency control
+        // reset the frequency control: set pub_count = 0
         if (abs(1.0 * pub_count / (img_msg->header.stamp.toSec() - first_image_time) - FREQ) < 0.01 * FREQ)
         {
             first_image_time = img_msg->header.stamp.toSec();
@@ -82,7 +99,7 @@ void img_callback(const sensor_msgs::ImageConstPtr &img_msg)
     for (int i = 0; i < NUM_OF_CAM; i++)
     {
         ROS_DEBUG("processing camera %d", i);
-        if (i != 1 || !STEREO_TRACK)
+        if (i != 1 || !STEREO_TRACK)// for monocular
             trackerData[i].readImage(ptr->image.rowRange(ROW * i, ROW * (i + 1)), img_msg->header.stamp.toSec());
         else
         {
@@ -201,7 +218,14 @@ void img_callback(const sensor_msgs::ImageConstPtr &img_msg)
             pub_match.publish(ptr->toImageMsg());
         }
     }
-    ROS_INFO("whole feature tracker processing costs: %f", t_r.toc());
+	//rosrun rqt_console rqt_console  for debug
+	ROS_DEBUG("**********feature tracker begin**********");
+	ROS_DEBUG("PUB_THIS_FRAME: %d", PUB_THIS_FRAME);
+	ROS_DEBUG("prev_pts: %d", int(trackerData[0].prev_pts.size()));
+	ROS_DEBUG("cur_pts: %d", int(trackerData[0].cur_pts.size()));
+	ROS_DEBUG("forw_pts: %d,", int(trackerData[0].forw_pts.size()));
+	ROS_DEBUG("whole feature tracker processing costs: %f", double(t_r.toc()));
+	ROS_DEBUG("feature tracker end");
 }
 
 int main(int argc, char **argv)

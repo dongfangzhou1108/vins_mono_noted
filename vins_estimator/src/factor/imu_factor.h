@@ -16,6 +16,9 @@ class IMUFactor : public ceres::SizedCostFunction<15, 7, 9, 7, 9>
     IMUFactor(IntegrationBase* _pre_integration):pre_integration(_pre_integration)
     {
     }
+    /**
+     * @brief  calc the jacobian of  four para: (1)para_Pose[i], (2)para_SpeedBias[i], (3)para_Pose[j], (4)para_SpeedBias[j]
+     */    
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const
     {
 

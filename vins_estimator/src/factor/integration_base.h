@@ -1,3 +1,11 @@
+/*
+ * @Author: your name
+ * @Date: 1970-01-01 08:00:00
+ * @LastEditTime: 2021-01-29 20:07:41
+ * @LastEditors: Please set LastEditors
+ * @Description: mainly for IMU data preintegration using Median Integration method
+ * @FilePath: /VINS-mono/vins_estimator/src/factor/integration_base.h
+ */
 #pragma once
 
 #include "../utility/utility.h"
@@ -6,10 +14,20 @@
 #include <ceres/ceres.h>
 using namespace Eigen;
 
+/**
+ * @brief  IMU preintegration class
+ */
 class IntegrationBase
 {
   public:
     IntegrationBase() = delete;
+    /**
+     * @brief  class IntegrationBase constructor func(), 
+	 * 					to initialize jacobian with I, covariance with 0, 
+	 * 					sun_dt with 0, preintegration measure delta_p/v/q with 0
+     * @param {acc, gyro, ba, bg}
+     * @return {*}
+     */    
     IntegrationBase(const Eigen::Vector3d &_acc_0, const Eigen::Vector3d &_gyr_0,
                     const Eigen::Vector3d &_linearized_ba, const Eigen::Vector3d &_linearized_bg)
         : acc_0{_acc_0}, gyr_0{_gyr_0}, linearized_acc{_acc_0}, linearized_gyr{_gyr_0},
@@ -27,6 +45,13 @@ class IntegrationBase
         noise.block<3, 3>(15, 15) =  (GYR_W * GYR_W) * Eigen::Matrix3d::Identity();
     }
 
+    /**
+     * @brief  wait to confirm: the entry of preintegrate IMU data
+     * @param {double} dt
+     * @param {const} Eigen
+     * @param {const} Eigen
+     * @return {*}
+     */    
     void push_back(double dt, const Eigen::Vector3d &acc, const Eigen::Vector3d &gyr)
     {
         dt_buf.push_back(dt);
@@ -35,6 +60,12 @@ class IntegrationBase
         propagate(dt, acc, gyr);
     }
 
+    /**
+     * @brief  after update bias_acc/gyro, clear the state in class IntegrationBase, propagate IMU data again using func propagate()
+     * @param {const} Eigen
+     * @param {const} Eigen
+     * @return {*}
+     */    
     void repropagate(const Eigen::Vector3d &_linearized_ba, const Eigen::Vector3d &_linearized_bg)
     {
         sum_dt = 0.0;
@@ -51,6 +82,11 @@ class IntegrationBase
             propagate(dt_buf[i], acc_buf[i], gyr_buf[i]);
     }
 
+    /**
+     * @brief  compute the preintegration measure using Median Integration method;
+	 * 					all preintegration measure push to variable result_delta_p/v/q
+	 * 					if need to update jacobian and convience, update it;
+     */    
     void midPointIntegration(double _dt, 
                             const Eigen::Vector3d &_acc_0, const Eigen::Vector3d &_gyr_0,
                             const Eigen::Vector3d &_acc_1, const Eigen::Vector3d &_gyr_1,
@@ -60,6 +96,9 @@ class IntegrationBase
                             Eigen::Vector3d &result_linearized_ba, Eigen::Vector3d &result_linearized_bg, bool update_jacobian)
     {
         //ROS_INFO("midpoint integration");
+		/**
+         * @brief  this par is to compute the preintegration measurement.hat() using Median Integration 
+         */
         Vector3d un_acc_0 = delta_q * (_acc_0 - linearized_ba);
         Vector3d un_gyr = 0.5 * (_gyr_0 + _gyr_1) - linearized_bg;
         result_delta_q = delta_q * Quaterniond(1, un_gyr(0) * _dt / 2, un_gyr(1) * _dt / 2, un_gyr(2) * _dt / 2);
@@ -69,7 +108,9 @@ class IntegrationBase
         result_delta_v = delta_v + un_acc * _dt;
         result_linearized_ba = linearized_ba;
         result_linearized_bg = linearized_bg;         
-
+        /**
+         * @brief  mainly using the fomular(15) in the doc of HuaKun Cui
+         */
         if(update_jacobian)
         {
             Vector3d w_x = 0.5 * (_gyr_0 + _gyr_1) - linearized_bg;
@@ -127,6 +168,13 @@ class IntegrationBase
 
     }
 
+    /**
+     * @brief  mainly use func midPointIntegration() and update varible
+     * @param {double} _dt
+     * @param {const} Eigen
+     * @param {const} Eigen
+     * @return {*}
+     */    
     void propagate(double _dt, const Eigen::Vector3d &_acc_1, const Eigen::Vector3d &_gyr_1)
     {
         dt = _dt;
@@ -186,21 +234,21 @@ class IntegrationBase
     }
 
     double dt;
-    Eigen::Vector3d acc_0, gyr_0;
-    Eigen::Vector3d acc_1, gyr_1;
+    Eigen::Vector3d acc_0, gyr_0; //IMU data with k times to compute k+1 times preintegration
+    Eigen::Vector3d acc_1, gyr_1; //IMU data with k+1 times to compute k+1 times preintegration
 
-    const Eigen::Vector3d linearized_acc, linearized_gyr;
+    const Eigen::Vector3d linearized_acc, linearized_gyr; //beginning acc or gyro in one IntegrationBase class
     Eigen::Vector3d linearized_ba, linearized_bg;
 
     Eigen::Matrix<double, 15, 15> jacobian, covariance;
     Eigen::Matrix<double, 15, 15> step_jacobian;
     Eigen::Matrix<double, 15, 18> step_V;
-    Eigen::Matrix<double, 18, 18> noise;
+    Eigen::Matrix<double, 18, 18> noise; // IMU noise convience with sigma_acc(1)/gyro(2)/acc(3)/gyro(4)/bias_acc(5)/bias_gyro(6)
 
-    double sum_dt;
-    Eigen::Vector3d delta_p;
-    Eigen::Quaterniond delta_q;
-    Eigen::Vector3d delta_v;
+    double sum_dt; //sum of time in one preintegration measurment
+    Eigen::Vector3d delta_p; //preintegration position
+    Eigen::Quaterniond delta_q; //preintegration quaterntion
+    Eigen::Vector3d delta_v; // preintegration velocity
 
     std::vector<double> dt_buf;
     std::vector<Eigen::Vector3d> acc_buf;

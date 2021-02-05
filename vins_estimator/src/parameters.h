@@ -48,7 +48,7 @@ enum SIZE_PARAMETERIZATION
     SIZE_FEATURE = 1
 };
 
-enum StateOrder
+enum StateOrder //as the order of estimator state
 {
     O_P = 0,
     O_R = 3,

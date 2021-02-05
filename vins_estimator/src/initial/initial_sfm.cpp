@@ -24,9 +24,9 @@ bool GlobalSFM::solveFrameByPnP(Matrix3d &R_initial, Vector3d &P_initial, int i,
 {
 	vector<cv::Point2f> pts_2_vector;
 	vector<cv::Point3f> pts_3_vector;
-	for (int j = 0; j < feature_num; j++)
+	for (int j = 0; j < feature_num; j++)  //extract pts_3: have triangulated and pts_2: pixel
 	{
-		if (sfm_f[j].state != true)
+		if (sfm_f[j].state != true) //only use feathers which have triangulated
 			continue;
 		Vector2d point2d;
 		for (int k = 0; k < (int)sfm_f[j].observation.size(); k++)
@@ -78,12 +78,12 @@ void GlobalSFM::triangulateTwoFrames(int frame0, Eigen::Matrix<double, 3, 4> &Po
 	assert(frame0 != frame1);
 	for (int j = 0; j < feature_num; j++)
 	{
-		if (sfm_f[j].state == true)
+		if (sfm_f[j].state == true) //if one feature have been trangulated, run out for one time
 			continue;
-		bool has_0 = false, has_1 = false;
+		bool has_0 = false, has_1 = false; //whether frame0 and frame1 have one same feather
 		Vector2d point0;
 		Vector2d point1;
-		for (int k = 0; k < (int)sfm_f[j].observation.size(); k++)
+		for (int k = 0; k < (int)sfm_f[j].observation.size(); k++) //judge one feather whether in both two frames
 		{
 			if (sfm_f[j].observation[k].first == frame0)
 			{
@@ -121,24 +121,29 @@ bool GlobalSFM::construct(int frame_num, Quaterniond* q, Vector3d* T, int l,
 	feature_num = sfm_f.size();
 	//cout << "set 0 and " << l << " as known " << endl;
 	// have relative_r relative_t
-	// intial two view
+	/**
+  * @brief  follow is deal with the l th and last frame pose, intial two view, set orgin frame is l th
+  */
 	q[l].w() = 1;
 	q[l].x() = 0;
 	q[l].y() = 0;
 	q[l].z() = 0;
 	T[l].setZero();
-	q[frame_num - 1] = q[l] * Quaterniond(relative_R);
+	q[frame_num - 1] = q[l] * Quaterniond(relative_R); //relative_R is from the last frame to l th
 	T[frame_num - 1] = relative_T;
 	//cout << "init q_l " << q[l].w() << " " << q[l].vec().transpose() << endl;
 	//cout << "init t_l " << T[l].transpose() << endl;
 
 	//rotate to cam frame
+	/**
+  * @brief  from l th to arbitrarily frame
+  */
 	Matrix3d c_Rotation[frame_num];
 	Vector3d c_Translation[frame_num];
 	Quaterniond c_Quat[frame_num];
 	double c_rotation[frame_num][4];
 	double c_translation[frame_num][3];
-	Eigen::Matrix<double, 3, 4> Pose[frame_num];
+	Eigen::Matrix<double, 3, 4> Pose[frame_num]; //l th to arbitrarily frame: point from arbitrarily to l th frame
 
 	c_Quat[l] = q[l].inverse();
 	c_Rotation[l] = c_Quat[l].toRotationMatrix();
@@ -155,6 +160,11 @@ bool GlobalSFM::construct(int frame_num, Quaterniond* q, Vector3d* T, int l,
 
 	//1: trangulate between l ----- frame_num - 1
 	//2: solve pnp l + 1; trangulate l + 1 ------- frame_num - 1; 
+	/**
+  * @brief  calc feature triangulated points in the l th frame coordinate
+  * 				triangulate points which can be seen in the last frame and arbitrarily frame
+  * 				(from l th to end)(firstly seen in arbitratily frame)
+  */
 	for (int i = l; i < frame_num - 1 ; i++)
 	{
 		// solve pnp
@@ -175,10 +185,16 @@ bool GlobalSFM::construct(int frame_num, Quaterniond* q, Vector3d* T, int l,
 		triangulateTwoFrames(i, Pose[i], frame_num - 1, Pose[frame_num - 1], sfm_f);
 	}
 	//3: triangulate l-----l+1 l+2 ... frame_num -2
+	/**
+  * @brief  triangulate points which can be seen in the l th frame and arbitrarily frame(from l th to end)(first seen in l th frame)
+  */
 	for (int i = l + 1; i < frame_num - 1; i++)
 		triangulateTwoFrames(l, Pose[l], i, Pose[i], sfm_f);
 	//4: solve pnp l-1; triangulate l-1 ----- l
 	//             l-2              l-2 ----- l
+	/**
+  * @brief  triangulate points which can be seen in the l th frame and arbitrarily frame(from begin to l th)(first seen in the arbitratily frame)
+  */
 	for (int i = l - 1; i >= 0; i--)
 	{
 		//solve pnp
@@ -233,7 +249,7 @@ bool GlobalSFM::construct(int frame_num, Quaterniond* q, Vector3d* T, int l,
 	ceres::Problem problem;
 	ceres::LocalParameterization* local_parameterization = new ceres::QuaternionParameterization();
 	//cout << " begin full BA " << endl;
-	for (int i = 0; i < frame_num; i++)
+	for (int i = 0; i < frame_num; i++) //add optimization parameter of frame pose
 	{
 		//double array for ceres
 		c_translation[i][0] = c_Translation[i].x();
@@ -247,15 +263,15 @@ bool GlobalSFM::construct(int frame_num, Quaterniond* q, Vector3d* T, int l,
 		problem.AddParameterBlock(c_translation[i], 3);
 		if (i == l)
 		{
-			problem.SetParameterBlockConstant(c_rotation[i]);
+			problem.SetParameterBlockConstant(c_rotation[i]); //set rotation of l th frame keep constant
 		}
 		if (i == l || i == frame_num - 1)
 		{
-			problem.SetParameterBlockConstant(c_translation[i]);
+			problem.SetParameterBlockConstant(c_translation[i]); //set trans of lth and last frame keep constant
 		}
 	}
 
-	for (int i = 0; i < feature_num; i++)
+	for (int i = 0; i < feature_num; i++) //add residual block with feature pixel and triangulated pts
 	{
 		if (sfm_f[i].state != true)
 			continue;
@@ -278,7 +294,7 @@ bool GlobalSFM::construct(int frame_num, Quaterniond* q, Vector3d* T, int l,
 	ceres::Solver::Summary summary;
 	ceres::Solve(options, &problem, &summary);
 	//std::cout << summary.BriefReport() << "\n";
-	if (summary.termination_type == ceres::CONVERGENCE || summary.final_cost < 5e-03)
+	if (summary.termination_type == ceres::CONVERGENCE || summary.final_cost < 5e-03) //收敛
 	{
 		//cout << "vision only BA converge" << endl;
 	}
