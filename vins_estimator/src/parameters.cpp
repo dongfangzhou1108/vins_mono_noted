@@ -1,8 +1,8 @@
 #include "parameters.h"
 
 double INIT_DEPTH;
-double MIN_PARALLAX; //keyframe selection threshold (pixel)
-double ACC_N, ACC_W; // acc measure noise, acc bias noise 
+double MIN_PARALLAX;
+double ACC_N, ACC_W;
 double GYR_N, GYR_W;
 
 std::vector<Eigen::Matrix3d> RIC;
@@ -20,8 +20,8 @@ int ROLLING_SHUTTER;
 std::string EX_CALIB_RESULT_PATH;
 std::string VINS_RESULT_PATH;
 std::string IMU_TOPIC;
-double ROW, COL; //online estimate time offset between camera and imu
-double TD, TR; //TD: initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)
+double ROW, COL;
+double TD, TR;
 
 template <typename T>
 T readParam(ros::NodeHandle &n, std::string name)
@@ -76,9 +76,6 @@ void readParameters(ros::NodeHandle &n)
     COL = fsSettings["image_width"];
     ROS_INFO("ROW: %f COL: %f ", ROW, COL);
 
-    /**
-     * @brief: follow ESTIMATE_EXTRINSIC to judge estimate_extrinsic whether to fix/optimize/none
-     */    
     ESTIMATE_EXTRINSIC = fsSettings["estimate_extrinsic"];
     if (ESTIMATE_EXTRINSIC == 2)
     {
@@ -120,19 +117,12 @@ void readParameters(ros::NodeHandle &n)
 
     TD = fsSettings["td"];
     ESTIMATE_TD = fsSettings["estimate_td"];
-
-    /**
-     * @brief: if ESTIMATE_TD = 1, td not fixed
-     */    
     if (ESTIMATE_TD)
         ROS_INFO_STREAM("Unsynchronized sensors, online estimate time offset, initial td: " << TD);
     else
         ROS_INFO_STREAM("Synchronized sensors, fix time offset: " << TD);
 
     ROLLING_SHUTTER = fsSettings["rolling_shutter"];
-    /**
-     * @brief: rolling shutter camera
-     */    
     if (ROLLING_SHUTTER)
     {
         TR = fsSettings["rolling_shutter_tr"];

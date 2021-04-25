@@ -13,7 +13,7 @@ bool InitialEXRotation::CalibrationExRotation(vector<pair<Vector3d, Vector3d>> c
     frame_count++;
     Rc.push_back(solveRelativeR(corres));
     Rimu.push_back(delta_q_imu.toRotationMatrix());
-    Rc_g.push_back(ric.inverse() * delta_q_imu * ric); //calc Rc using Rimu and calibed ric 
+    Rc_g.push_back(ric.inverse() * delta_q_imu * ric);
 
     Eigen::MatrixXd A(frame_count * 4, 4);
     A.setZero();
@@ -27,7 +27,7 @@ bool InitialEXRotation::CalibrationExRotation(vector<pair<Vector3d, Vector3d>> c
         ROS_DEBUG(
             "%d %f", i, angular_distance);
 
-        double huber = angular_distance > 5.0 ? 5.0 / angular_distance : 1.0;
+        double huber = angular_distance > 5.0 ? 5.0 / angular_distance : 1.0; //核函数处理外点
         ++sum_ok;
         Matrix4d L, R;
 
@@ -57,9 +57,6 @@ bool InitialEXRotation::CalibrationExRotation(vector<pair<Vector3d, Vector3d>> c
     //cout << ric << endl;
     Vector3d ric_cov;
     ric_cov = svd.singularValues().tail<3>();
-    /**
-     * @brief  at least iteration for WINDOW_SIZE time or singular error bigger than 0.25 
-     */    
     if (frame_count >= WINDOW_SIZE && ric_cov(1) > 0.25)
     {
         calib_ric_result = ric;
@@ -73,7 +70,7 @@ Matrix3d InitialEXRotation::solveRelativeR(const vector<pair<Vector3d, Vector3d>
 {
     if (corres.size() >= 9)
     {
-        vector<cv::Point2f> ll, rr; //they are points in normalized plane
+        vector<cv::Point2f> ll, rr;
         for (int i = 0; i < int(corres.size()); i++)
         {
             ll.push_back(cv::Point2f(corres[i].first(0), corres[i].first(1)));

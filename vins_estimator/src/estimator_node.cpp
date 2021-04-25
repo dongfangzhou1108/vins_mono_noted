@@ -1,15 +1,3 @@
-/*
- * @Author: your name
- * @Date: 1970-01-01 08:00:00
- * @LastEditTime: 2021-01-27 17:34:06
- * @LastEditors: Please set LastEditors
- * @Description: when estimate motion state, the imu data is begin earlier than image;
- * 								the freq of publish IMU is mainly 20/10(feature_track freq control) times of features;
- * 								almost all  imu_callback() func done with predict() except of the first IMU data;
- * 								tmp_Q is [0, 0, 0, 0], so before initialization, all tmp_Q in func predict() is all zero, and tmp_P/V/Q are all no use;
- * 								euroc finish initialization almost in 3 seconds;
- * @FilePath: /VINS-mono/vins_estimator/src/estimator_node.cpp
- */
 #include <stdio.h>
 #include <queue>
 #include <map>
@@ -34,10 +22,10 @@ queue<sensor_msgs::PointCloudConstPtr> feature_buf;
 queue<sensor_msgs::PointCloudConstPtr> relo_buf;
 int sum_of_wait = 0;
 
-std::mutex m_buf; //for data_buff((1)imu/(2)feature/(3)restart/(4)relo) and (5)update(), before push lock, after push unlock
-std::mutex m_state; //for func update(update state) lock an unlock, aslo when m_state unlock, for imu_callback to predict IMU data
+std::mutex m_buf;
+std::mutex m_state;
 std::mutex i_buf;
-std::mutex m_estimator; //the lock for (1)estimator process and (2)restart_callback(for clean the old state)
+std::mutex m_estimator;
 
 double latest_time;
 Eigen::Vector3d tmp_P;
@@ -45,17 +33,12 @@ Eigen::Quaterniond tmp_Q;
 Eigen::Vector3d tmp_V;
 Eigen::Vector3d tmp_Ba;
 Eigen::Vector3d tmp_Bg;
-Eigen::Vector3d acc_0; // last IMU data acc
-Eigen::Vector3d gyr_0; //last IMU data gyro
+Eigen::Vector3d acc_0;
+Eigen::Vector3d gyr_0;
 bool init_feature = 0;
 bool init_imu = 1;
 double last_imu_t = 0;
 
-/**
- * @brief to predict IMU data in nominal state
- * @param {const} sensor_msgs
- * @return {*}
- */
 void predict(const sensor_msgs::ImuConstPtr &imu_msg)
 {
     double t = imu_msg->header.stamp.toSec();
@@ -71,12 +54,12 @@ void predict(const sensor_msgs::ImuConstPtr &imu_msg)
     double dx = imu_msg->linear_acceleration.x;
     double dy = imu_msg->linear_acceleration.y;
     double dz = imu_msg->linear_acceleration.z;
-    Eigen::Vector3d linear_acceleration{dx, dy, dz}; //new IMU data acc
+    Eigen::Vector3d linear_acceleration{dx, dy, dz};
 
     double rx = imu_msg->angular_velocity.x;
     double ry = imu_msg->angular_velocity.y;
     double rz = imu_msg->angular_velocity.z;
-    Eigen::Vector3d angular_velocity{rx, ry, rz}; //new IMU data gyro
+    Eigen::Vector3d angular_velocity{rx, ry, rz};
 
     Eigen::Vector3d un_acc_0 = tmp_Q * (acc_0 - tmp_Ba) - estimator.g;
 
@@ -92,9 +75,6 @@ void predict(const sensor_msgs::ImuConstPtr &imu_msg)
 
     acc_0 = linear_acceleration;
     gyr_0 = angular_velocity;
-	ROS_DEBUG("**********Done predict() function**********");
-	ROS_DEBUG("tmp_Q and angular_velocity: %f, %f, %f, %f, %f, %f, %f", tmp_Q.w(), tmp_Q.x(), tmp_Q.y(), tmp_Q.z(), 
-								angular_velocity.x(), angular_velocity.y(), angular_velocity.z());
 }
 
 void update()
@@ -116,12 +96,7 @@ void update()
 }
 
 /**
- * @brief  to keep a feature data is between oldest and newest IMU data ;
- * 					we will extract feature data and vector of IMU data into measurements;
- * 					finally we will delet data in the queue of feature and IMU data;
- * 					only a IMU data later than the feature data
- * @param {*}
- * @return {*}
+ * @brief measurements数据结构：pair of IMU vector and KLT feature
  */
 std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>, sensor_msgs::PointCloudConstPtr>>
 getMeasurements()
@@ -130,14 +105,9 @@ getMeasurements()
 
     while (true)
     {
-		ROS_DEBUG("***********Done getMeasurements()!**********");
-		// as to say, we need oldest feature data is between oldest and newest IMU data
-		//if imu/feature_buf is empty, do nothing and return
         if (imu_buf.empty() || feature_buf.empty())
             return measurements;
 
-		//when newest IMU data time later than oldest feature data, 
-		// it is to say we need newest IMU data later than oldest feature data;
         if (!(imu_buf.back()->header.stamp.toSec() > feature_buf.front()->header.stamp.toSec() + estimator.td))
         {
             //ROS_WARN("wait for imu, only should happen at the beginning");
@@ -145,13 +115,11 @@ getMeasurements()
             return measurements;
         }
 
-		// when oldest IMU data is  ealier than oldest feathure data
-		// it is to say we need oldest IMU data earlier than feature oldest data
         if (!(imu_buf.front()->header.stamp.toSec() < feature_buf.front()->header.stamp.toSec() + estimator.td))
         {
             ROS_WARN("throw img, only should happen at the beginning");
             feature_buf.pop();
-            continue; // run to the while() beginning
+            continue;
         }
         sensor_msgs::PointCloudConstPtr img_msg = feature_buf.front();
         feature_buf.pop();
@@ -170,15 +138,8 @@ getMeasurements()
     return measurements;
 }
 
-/**
- * @brief  push imu_msg to imu_buf and if initialization finishi, predict IMU pose;
- * @param {const} sensor_msgs
- * @return {*}
- */
 void imu_callback(const sensor_msgs::ImuConstPtr &imu_msg)
 {
-	ROS_DEBUG("Done imu_callback() !");
-
     if (imu_msg->header.stamp.toSec() <= last_imu_t)
     {
         ROS_WARN("imu message in disorder!");
@@ -189,15 +150,11 @@ void imu_callback(const sensor_msgs::ImuConstPtr &imu_msg)
     m_buf.lock();
     imu_buf.push(imu_msg);
     m_buf.unlock();
-    con.notify_one(); //after recept data, awake the process thread 
+    con.notify_one();
 
     last_imu_t = imu_msg->header.stamp.toSec();
 
     {
-        /**
-         * @brief  this part, when m_state is not lock, lock this and do as follow to predict IMU data;
-		 * 					after initial, this part will work
-         */        
         std::lock_guard<std::mutex> lg(m_state);
         predict(imu_msg);
         std_msgs::Header header = imu_msg->header;
@@ -207,15 +164,9 @@ void imu_callback(const sensor_msgs::ImuConstPtr &imu_msg)
     }
 }
 
-/**
- * @brief  push feature_msg to feature_buf (normalized pixel);
- * @param {const} sensor_msgs
- * @return {*}
- */
+
 void feature_callback(const sensor_msgs::PointCloudConstPtr &feature_msg)
 {
-	ROS_DEBUG("**********Done feature_callback()**********");
-	
     if (!init_feature)
     {
         //skip the first detected feature, which doesn't contain optical flow speed
@@ -262,46 +213,28 @@ void process()
 {
     while (true)
     {
-        std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>, 
-													sensor_msgs::PointCloudConstPtr>> measurements; //data pair of IMU vector and normalized pixel, size is always 0/1
+        std::vector<std::pair<std::vector<sensor_msgs::ImuConstPtr>, sensor_msgs::PointCloudConstPtr>> measurements;
         std::unique_lock<std::mutex> lk(m_buf);
-        /**
-         * @brief  if measurements.size() = 0, the thread will not wake up forever;
-		 * 					until other thread both do con.notify_one(), after feature_callback() and imu_callback();
-		 * 					when lamba (measurements = getMeasurements()).size() != 0 is false, keep match IMU-feature data;
-		 * 					if lamba (measurements = getMeasurements()).size() != 0 is ture, finish match data, unlock mutex;
-		 * 					every time measurements is new get from func getMeasurements(), so its size is always 0/1;
-         */        
         con.wait(lk, [&]
                  {
             return (measurements = getMeasurements()).size() != 0;
                  });
         lk.unlock();
         m_estimator.lock();
-		ROS_DEBUG("measurements size is : %d, IMU_begin_time is %f, IMU_end_time is %f, feature time is%f", 
-									int(measurements.size()), 
-									measurements[0].first.front()->header.stamp.toSec(),
-									measurements[0].first.back()->header.stamp.toSec(),
-									measurements[0].second->header.stamp.toSec());
         for (auto &measurement : measurements)
         {
             auto img_msg = measurement.second;
             double dx = 0, dy = 0, dz = 0, rx = 0, ry = 0, rz = 0;
-            for (auto &imu_msg : measurement.first) //begin to process IMU data
+            for (auto &imu_msg : measurement.first)
             {
                 double t = imu_msg->header.stamp.toSec();
                 double img_t = img_msg->header.stamp.toSec() + estimator.td;
-				/**
-                 * @brief  we can seperate two states to handle the IMU data,
-				 * 					the difference between the two parts is, when the only IMU data time later than feature,
-				 *  				we use the median value of IMU data at this point
-                 */
-                if (t <= img_t) //if IMU data earlier than feature data
+                if (t <= img_t)
                 { 
-                    if (current_time < 0) //for first data to receive data
+                    if (current_time < 0)
                         current_time = t;
-                    double dt = t - current_time; //here surrent time is the last IMU data time, first time dt = 0;
-                    ROS_ASSERT(dt >= 0); //if dt<0, stop the code running
+                    double dt = t - current_time;
+                    ROS_ASSERT(dt >= 0);
                     current_time = t;
                     dx = imu_msg->linear_acceleration.x;
                     dy = imu_msg->linear_acceleration.y;
@@ -313,7 +246,7 @@ void process()
                     //printf("imu: dt:%f a: %f %f %f w: %f %f %f\n",dt, dx, dy, dz, rx, ry, rz);
 
                 }
-                else //if IMU data later than feature data
+                else
                 {
                     double dt_1 = img_t - current_time;
                     double dt_2 = t - img_t;
@@ -363,9 +296,8 @@ void process()
             ROS_DEBUG("processing vision data with stamp %f \n", img_msg->header.stamp.toSec());
 
             TicToc t_s;
-			//key is feature_id, value is Eigen::Matrix(7,1) filled with un_pts, pts and un_pts_velo
             map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> image;
-            for (unsigned int i = 0; i < img_msg->points.size(); i++) //begin to process feature data into std::map image();
+            for (unsigned int i = 0; i < img_msg->points.size(); i++)
             {
                 int v = img_msg->channels[0].values[i] + 0.5;
                 int feature_id = v / NUM_OF_CAM;

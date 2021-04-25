@@ -14,14 +14,6 @@ class MotionEstimator
 {
   public:
 
-    /**
-     * @brief  using F Matrix to recover R and t from the image features;
-	 * 					if features fit OpenCV func recoverPose() bigger than 12, return true
-     * @param {constvector<pair<Vector3d,Vector3d>>} &corres
-     * @param {Matrix3d} &R
-     * @param {Vector3d} &T
-     * @return {*}
-     */    
     bool solveRelativeRT(const vector<pair<Vector3d, Vector3d>> &corres, Matrix3d &R, Vector3d &T);
 
   private:

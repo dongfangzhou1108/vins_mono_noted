@@ -49,7 +49,7 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
     double parallax_sum = 0;
     int parallax_num = 0;
     last_track_num = 0;
-    for (auto &id_pts : image) //to update list<FeaturePerId> feature;
+    for (auto &id_pts : image)
     {
         FeaturePerFrame f_per_fra(id_pts.second[0].second, td);
 
@@ -59,18 +59,11 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
             return it.feature_id == feature_id;
                           });
 
-        /**
-         * @brief  if it is a feature with new feature_id, push back new FeaturePerId back to std::list feature;
-		 * 					and push back FeaturePerFrame: f_per_fra to the new FeaturePerId;
-         */        
         if (it == feature.end())
         {
             feature.push_back(FeaturePerId(feature_id, frame_count));
             feature.back().feature_per_frame.push_back(f_per_fra);
         }
-        /**
-         * @brief to clac the number of tracked feature
-         */        
         else if (it->feature_id == feature_id)
         {
             it->feature_per_frame.push_back(f_per_fra);
@@ -78,20 +71,20 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
         }
     }
 
-    if (frame_count < 2 || last_track_num < 20) //if system begin or tracked feature number too small, return true
+    if (frame_count < 2 || last_track_num < 20)
         return true;
 
-    for (auto &it_per_id : feature) //calc all new features parallax between second and third newest feature
+    for (auto &it_per_id : feature)
     {
         if (it_per_id.start_frame <= frame_count - 2 &&
-            it_per_id.start_frame + int(it_per_id.feature_per_frame.size()) - 1 >= frame_count - 1) //for new feature
+            it_per_id.start_frame + int(it_per_id.feature_per_frame.size()) - 1 >= frame_count - 1)
         {
             parallax_sum += compensatedParallax2(it_per_id, frame_count);
             parallax_num++;
         }
     }
 
-    if (parallax_num == 0) //if it is all new feature, it is keyFrame
+    if (parallax_num == 0)
     {
         return true;
     }
@@ -223,8 +216,8 @@ void FeatureManager::triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])
         int svd_idx = 0;
 
         Eigen::Matrix<double, 3, 4> P0;
-        Eigen::Vector3d t0 = Ps[imu_i] + Rs[imu_i] * tic[0]; //t_cam_oth_cam_ith
-        Eigen::Matrix3d R0 = Rs[imu_i] * ric[0]; //R_cam_0th_IMU_ith * R_IMU_cam = R_cam_0th_cam_ith
+        Eigen::Vector3d t0 = Ps[imu_i] + Rs[imu_i] * tic[0];
+        Eigen::Matrix3d R0 = Rs[imu_i] * ric[0];
         P0.leftCols<3>() = Eigen::Matrix3d::Identity();
         P0.rightCols<1>() = Eigen::Vector3d::Zero();
 
@@ -232,11 +225,11 @@ void FeatureManager::triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])
         {
             imu_j++;
 
-            Eigen::Vector3d t1 = Ps[imu_j] + Rs[imu_j] * tic[0]; //t_cam_0th_cam_jth
-            Eigen::Matrix3d R1 = Rs[imu_j] * ric[0]; //R_cam_0th_cam_jth
+            Eigen::Vector3d t1 = Ps[imu_j] + Rs[imu_j] * tic[0];
+            Eigen::Matrix3d R1 = Rs[imu_j] * ric[0];
             Eigen::Vector3d t = R0.transpose() * (t1 - t0);
-            Eigen::Matrix3d R = R0.transpose() * R1; //R_cam_ith_cam_jth
-            Eigen::Matrix<double, 3, 4> P; //T_cam_jth_cam_ith
+            Eigen::Matrix3d R = R0.transpose() * R1;
+            Eigen::Matrix<double, 3, 4> P;
             P.leftCols<3>() = R.transpose();
             P.rightCols<1>() = -R.transpose() * t;
             Eigen::Vector3d f = it_per_frame.point.normalized();
@@ -247,7 +240,6 @@ void FeatureManager::triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[])
                 continue;
         }
         ROS_ASSERT(svd_idx == svd_A.rows());
-		//对A的SVD分解得到其最小奇异值对应的单位奇异向量(x,y,z,w)，深度为z/w
         Eigen::Vector4d svd_V = Eigen::JacobiSVD<Eigen::MatrixXd>(svd_A, Eigen::ComputeThinV).matrixV().rightCols<1>();
         double svd_method = svd_V[2] / svd_V[3];
         //it_per_id->estimated_depth = -b / A;

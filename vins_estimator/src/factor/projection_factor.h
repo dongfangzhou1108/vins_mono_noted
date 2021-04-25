@@ -7,6 +7,9 @@
 #include "../utility/tic_toc.h"
 #include "../parameters.h"
 
+/**
+ * @brief 残差size=2，i帧位姿+j帧位姿+外参size=7，逆深度size=1．
+ */
 class ProjectionFactor : public ceres::SizedCostFunction<2, 7, 7, 7, 1>
 {
   public:

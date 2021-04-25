@@ -90,27 +90,19 @@ void MarginalizationInfo::addResidualBlockInfo(ResidualBlockInfo *residual_block
 {
     factors.emplace_back(residual_block_info);
 
-	// if is IMUFactor (para_Pose, para_SpeedBias) * 2: 7, 9, 7, 9
-	// if is ProjectionFactor (para_Pose, para_Pose, para_Ex_Pose, para_Feature): 7, 7, 7, 1
     std::vector<double *> &parameter_blocks = residual_block_info->parameter_blocks;
     std::vector<int> parameter_block_sizes = residual_block_info->cost_function->parameter_block_sizes();
 
-    /**
-     * @brief  map with vector of parameter_blocks address and size in parameter_block_size
-     */    
     for (int i = 0; i < static_cast<int>(residual_block_info->parameter_blocks.size()); i++)
     {
-        double *addr = parameter_blocks[i]; //内存地址
+        double *addr = parameter_blocks[i];
         int size = parameter_block_sizes[i];
         parameter_block_size[reinterpret_cast<long>(addr)] = size;
     }
 
-    /**
-     * @brief  map with the address of drop_set parameter_blocks and 0 in parameter_block_idx
-     */    
     for (int i = 0; i < static_cast<int>(residual_block_info->drop_set.size()); i++)
     {
-        double *addr = parameter_blocks[residual_block_info->drop_set[i]]; //drop_set address
+        double *addr = parameter_blocks[residual_block_info->drop_set[i]];
         parameter_block_idx[reinterpret_cast<long>(addr)] = 0;
     }
 }
@@ -121,7 +113,7 @@ void MarginalizationInfo::preMarginalize()
     {
         it->Evaluate();
 
-        std::vector<int> block_sizes = it->cost_function->parameter_block_sizes(); //calc factor: it block_sizes
+        std::vector<int> block_sizes = it->cost_function->parameter_block_sizes();
         for (int i = 0; i < static_cast<int>(block_sizes.size()); i++)
         {
             long addr = reinterpret_cast<long>(it->parameter_blocks[i]);
@@ -129,7 +121,7 @@ void MarginalizationInfo::preMarginalize()
             if (parameter_block_data.find(addr) == parameter_block_data.end())
             {
                 double *data = new double[size];
-                memcpy(data, it->parameter_blocks[i], sizeof(double) * size); //copy data from it->parameter_blocks[i] to data
+                memcpy(data, it->parameter_blocks[i], sizeof(double) * size);
                 parameter_block_data[addr] = data;
             }
         }
@@ -138,7 +130,7 @@ void MarginalizationInfo::preMarginalize()
 
 int MarginalizationInfo::localSize(int size) const
 {
-    return size == 7 ? 6 : size; //if size == 7, return 6; else, return size;
+    return size == 7 ? 6 : size;
 }
 
 int MarginalizationInfo::globalSize(int size) const
@@ -149,7 +141,7 @@ int MarginalizationInfo::globalSize(int size) const
 void* ThreadsConstructA(void* threadsstruct)
 {
     ThreadsStruct* p = ((ThreadsStruct*)threadsstruct);
-    for (auto it : p->sub_factors) //factor->parameter_blocks->jacobians
+    for (auto it : p->sub_factors)
     {
         for (int i = 0; i < static_cast<int>(it->parameter_blocks.size()); i++)
         {
@@ -182,17 +174,17 @@ void* ThreadsConstructA(void* threadsstruct)
 void MarginalizationInfo::marginalize()
 {
     int pos = 0;
-    for (auto &it : parameter_block_idx) // calc m = sum of drop_set size
+    for (auto &it : parameter_block_idx)
     {
         it.second = pos;
-        pos += localSize(parameter_block_size[it.first]); //localSize(): if size == 7 (para_Pose), return 6 (guess: quaterntion is 3 freedom); else, return size;
+        pos += localSize(parameter_block_size[it.first]);
     }
 
     m = pos;
 
     for (const auto &it : parameter_block_size)
     {
-        if (parameter_block_idx.find(it.first) == parameter_block_idx.end()) //parameter_block which not be drop_set
+        if (parameter_block_idx.find(it.first) == parameter_block_idx.end())
         {
             parameter_block_idx[it.first] = pos;
             pos += localSize(it.second);
@@ -241,25 +233,19 @@ void MarginalizationInfo::marginalize()
     pthread_t tids[NUM_THREADS];
     ThreadsStruct threadsstruct[NUM_THREADS];
     int i = 0;
-    for (auto it : factors) //push data back to threadsstruct
+    for (auto it : factors) // add factor
     {
         threadsstruct[i].sub_factors.push_back(it);
         i++;
         i = i % NUM_THREADS;
     }
-    for (int i = 0; i < NUM_THREADS; i++) //do func ThreadsConstructA
+    for (int i = 0; i < NUM_THREADS; i++)
     {
         TicToc zero_matrix;
         threadsstruct[i].A = Eigen::MatrixXd::Zero(pos,pos);
         threadsstruct[i].b = Eigen::VectorXd::Zero(pos);
         threadsstruct[i].parameter_block_size = parameter_block_size;
         threadsstruct[i].parameter_block_idx = parameter_block_idx;
-        /**
-         * @brief  pthread_t *restrict tidp,   						//新创建的线程ID指向的内存单元;
-							const pthread_attr_t *restrict attr,   //线程属性，默认为NULL;
-							void *(*start_rtn)(void *), 					//新创建的线程从start_rtn函数的地址开始运行;
-							void *restrict arg 										//默认为NULL。若上述函数需要参数，将参数放入结构中并将地址作为arg传入;
-         */        
         int ret = pthread_create( &tids[i], NULL, ThreadsConstructA ,(void*)&(threadsstruct[i]));
         if (ret != 0)
         {
@@ -267,9 +253,9 @@ void MarginalizationInfo::marginalize()
             ROS_BREAK();
         }
     }
-    for( int i = NUM_THREADS - 1; i >= 0; i--)  //calc A,b
+    for( int i = NUM_THREADS - 1; i >= 0; i--)  
     {
-        pthread_join( tids[i], NULL ); //线程同步
+        pthread_join( tids[i], NULL ); // 阻塞等待线程完成
         A += threadsstruct[i].A;
         b += threadsstruct[i].b;
     }
@@ -278,6 +264,7 @@ void MarginalizationInfo::marginalize()
 
 
     //TODO
+	//求H矩阵左上角marg变量部分的逆，为保证数值稳定性，
     Eigen::MatrixXd Amm = 0.5 * (A.block(0, 0, m, m) + A.block(0, 0, m, m).transpose());
     Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> saes(Amm);
 
@@ -286,6 +273,8 @@ void MarginalizationInfo::marginalize()
     Eigen::MatrixXd Amm_inv = saes.eigenvectors() * Eigen::VectorXd((saes.eigenvalues().array() > eps).select(saes.eigenvalues().array().inverse(), 0)).asDiagonal() * saes.eigenvectors().transpose();
     //printf("error1: %f\n", (Amm * Amm_inv - Eigen::MatrixXd::Identity(m, m)).sum());
 
+	//H -> Amm Amr
+	//			Arm   Arr
     Eigen::VectorXd bmm = b.segment(0, m);
     Eigen::MatrixXd Amr = A.block(0, m, m, n);
     Eigen::MatrixXd Arm = A.block(m, 0, n, m);

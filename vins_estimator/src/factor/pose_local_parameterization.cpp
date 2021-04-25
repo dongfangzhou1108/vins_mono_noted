@@ -17,6 +17,13 @@ bool PoseLocalParameterization::Plus(const double *x, const double *delta, doubl
 
     return true;
 }
+/**
+ * @brief J.trans()*J*delta_x=J.trans()*residual
+ * 				  当优化变量x过参数化时，如四元数和旋转向量，需要计算 delta_residual        delta_q
+ *                                                                                                                                  -------------------- * ---------------
+ * 																																	        delta_q             delta_so3
+ *                由delta_q_t(7自由度)计算delta_so3(6自由度)，即Plus函数中的delta．
+ */
 bool PoseLocalParameterization::ComputeJacobian(const double *x, double *jacobian) const
 {
     Eigen::Map<Eigen::Matrix<double, 7, 6, Eigen::RowMajor>> j(jacobian);

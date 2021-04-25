@@ -1,10 +1,5 @@
 #include "initial_alignment.h"
 
-/**
- * @brief  the beginning ot visualInitialAlign: compute bias of gyro,and repragrate with new bias_gyro
- * @param {map<double,ImageFrame>} &all_image_frame
- * @return {*}
- */
 void solveGyroscopeBias(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs)
 {
     Matrix3d A;
@@ -21,10 +16,10 @@ void solveGyroscopeBias(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs)
         tmp_A.setZero();
         VectorXd tmp_b(3);
         tmp_b.setZero();
-        Eigen::Quaterniond q_ij(frame_i->second.R.transpose() * frame_j->second.R);
+        Eigen::Quaterniond q_ij(frame_i->second.R.transpose() * frame_j->second.R);//R_ithIMU_w * R_w_jthIMU = R_ithIMU_jthIMU
         tmp_A = frame_j->second.pre_integration->jacobian.template block<3, 3>(O_R, O_BG);
         tmp_b = 2 * (frame_j->second.pre_integration->delta_q.inverse() * q_ij).vec();
-        A += tmp_A.transpose() * tmp_A;
+        A += tmp_A.transpose() * tmp_A;//转换成正定矩阵
         b += tmp_A.transpose() * tmp_b;
 
     }
@@ -34,7 +29,7 @@ void solveGyroscopeBias(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs)
     for (int i = 0; i <= WINDOW_SIZE; i++)
         Bgs[i] += delta_bg;
 
-    for (frame_i = all_image_frame.begin(); next(frame_i) != all_image_frame.end( ); frame_i++) //repropagate for all data
+    for (frame_i = all_image_frame.begin(); next(frame_i) != all_image_frame.end( ); frame_i++)
     {
         frame_j = next(frame_i);
         frame_j->second.pre_integration->repropagate(Vector3d::Zero(), Bgs[0]);
@@ -42,27 +37,21 @@ void solveGyroscopeBias(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs)
 }
 
 
-/**
- * @brief  calc tangent vector of gravity 
- */
 MatrixXd TangentBasis(Vector3d &g0)
 {
     Vector3d b, c;
     Vector3d a = g0.normalized();
     Vector3d tmp(0, 0, 1);
-    if(a == tmp) //if g vector is z axis
+    if(a == tmp)
         tmp << 1, 0, 0;
     b = (tmp - a * (a.transpose() * tmp)).normalized();
     c = a.cross(b);
-    MatrixXd bc(3, 2);
+    MatrixXd bc(3, 2);//a(与g方向相同)和b和c互相垂直，长度为1
     bc.block<3, 1>(0, 0) = b;
     bc.block<3, 1>(0, 1) = c;
     return bc;
 }
 
-/**
- * @brief  refine gravity vector
- */
 void RefineGravity(map<double, ImageFrame> &all_image_frame, Vector3d &g, VectorXd &x)
 {
     Vector3d g0 = g.normalized() * G.norm();
@@ -78,7 +67,7 @@ void RefineGravity(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vector
 
     map<double, ImageFrame>::iterator frame_i;
     map<double, ImageFrame>::iterator frame_j;
-    for(int k = 0; k < 4; k++) //only change 0.001 in gravity orietation
+    for(int k = 0; k < 4; k++)
     {
         MatrixXd lxly(3, 2);
         lxly = TangentBasis(g0);
@@ -128,20 +117,15 @@ void RefineGravity(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vector
             x = A.ldlt().solve(b);
             VectorXd dg = x.segment<2>(n_state - 3);
             g0 = (g0 + lxly * dg).normalized() * G.norm();
-			ROS_DEBUG("refined gravity is %f, %f, %f", g0(0), g0(1), g0(2));
             //double s = x(n_state - 1);
     }   
     g = g0;
 }
 
-/**
- * @brief  calc velocity, scale and gravity in reference frame;
- * 					follow (35)fomular in  Huakun Cui doc, we can't optimaze the Tic;
- */
 bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, VectorXd &x)
 {
     int all_frame_count = all_image_frame.size();
-    int n_state = all_frame_count * 3 + 3 + 1; // 3 * frame_velocity + gravity + scale 
+    int n_state = all_frame_count * 3 + 3 + 1;
 
     MatrixXd A{n_state, n_state};
     A.setZero();
@@ -181,10 +165,10 @@ bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vect
         MatrixXd r_A = tmp_A.transpose() * cov_inv * tmp_A;
         VectorXd r_b = tmp_A.transpose() * cov_inv * tmp_b;
 
-        A.block<6, 6>(i * 3, i * 3) += r_A.topLeftCorner<6, 6>();
+        A.block<6, 6>(i * 3, i * 3) += r_A.topLeftCorner<6, 6>();//i和i+1帧velo
         b.segment<6>(i * 3) += r_b.head<6>();
 
-        A.bottomRightCorner<4, 4>() += r_A.bottomRightCorner<4, 4>();
+        A.bottomRightCorner<4, 4>() += r_A.bottomRightCorner<4, 4>();//g和s部分
         b.tail<4>() += r_b.tail<4>();
 
         A.block<6, 4>(i * 3, n_state - 4) += r_A.topRightCorner<6, 4>();
@@ -202,7 +186,7 @@ bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vect
         return false;
     }
 
-    RefineGravity(all_image_frame, g, x); //x is state of velocity, gravity and scale
+    RefineGravity(all_image_frame, g, x);
     s = (x.tail<1>())(0) / 100.0;
     (x.tail<1>())(0) = s;
     ROS_DEBUG_STREAM(" refine     " << g.norm() << " " << g.transpose());
@@ -212,10 +196,6 @@ bool LinearAlignment(map<double, ImageFrame> &all_image_frame, Vector3d &g, Vect
         return true;
 }
 
-/**
- * @brief  using func: solveGyroscopeBias() to clac bias_gyro;
- * 					to calc velocity, scale, and gravity in LinearAlignment(), and refine gravity in RefineGravity()
- */
 bool VisualIMUAlignment(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs, Vector3d &g, VectorXd &x)
 {
     solveGyroscopeBias(all_image_frame, Bgs);
