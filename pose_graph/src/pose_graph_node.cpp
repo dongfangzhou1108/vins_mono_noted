@@ -291,6 +291,11 @@ void extrinsic_callback(const nav_msgs::Odometry::ConstPtr &pose_msg)
     m_process.unlock();
 }
 
+/**
+ * @brief step1:image_msg + point_msg + pose_msg 测量时间对齐.
+ * 				  step2:如果成功对齐数据,回环帧的帧数差和位移距离满足阈值,构建回环帧KeyFrame.
+ * 				  step3:执行PoseGraph::addKeyFrame,加入关键帧到数据库中,进行回环检测.
+ */
 void process()
 {
     if (!LOOP_CLOSURE)

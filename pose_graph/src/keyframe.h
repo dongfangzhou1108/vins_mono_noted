@@ -32,12 +32,18 @@ public:
 class KeyFrame
 {
 public:
+	//关键变量赋值+计算特征描述子
 	KeyFrame(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Matrix3d &_vio_R_w_i, cv::Mat &_image,
 			 vector<cv::Point3f> &_point_3d, vector<cv::Point2f> &_point_2d_uv, vector<cv::Point2f> &_point_2d_normal, 
 			 vector<double> &_point_id, int _sequence);
 	KeyFrame(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Matrix3d &_vio_R_w_i, Vector3d &_T_w_i, Matrix3d &_R_w_i,
 			 cv::Mat &_image, int _loop_index, Eigen::Matrix<double, 8, 1 > &_loop_info,
 			 vector<cv::KeyPoint> &_keypoints, vector<cv::KeyPoint> &_keypoints_norm, vector<BRIEF::bitset> &_brief_descriptors);
+ /**
+  * @brief step1:调用searchByBRIEFDes()进行特征匹配.
+  * 			   step2:调用PnPRANSAC()进行PnP位姿计算.
+  * 			   step3:如果计算的回环帧位姿和当前关键帧位姿(偏航)差满足阈值,回环检测成功,向estimator发送与回环帧的特征匹配.
+  */
 	bool findConnection(KeyFrame* old_kf);
 	void computeWindowBRIEFPoint();
 	void computeBRIEFPoint();
@@ -49,6 +55,7 @@ public:
 	                  const std::vector<cv::KeyPoint> &keypoints_old_norm,
 	                  cv::Point2f &best_match,
 	                  cv::Point2f &best_match_norm);
+	//2d-2d使用window_keypoints进行描述子匹配.
 	void searchByBRIEFDes(std::vector<cv::Point2f> &matched_2d_old,
 						  std::vector<cv::Point2f> &matched_2d_old_norm,
                           std::vector<uchar> &status,
@@ -58,6 +65,7 @@ public:
 	void FundmantalMatrixRANSAC(const std::vector<cv::Point2f> &matched_2d_cur_norm,
                                 const std::vector<cv::Point2f> &matched_2d_old_norm,
                                 vector<uchar> &status);
+	//返回的是回环帧在当前关键帧世界坐标系下(滑动窗口)的位姿.
 	void PnPRANSAC(const vector<cv::Point2f> &matched_2d_old_norm,
 	               const std::vector<cv::Point3f> &matched_3d,
 	               std::vector<uchar> &status,

@@ -38,6 +38,11 @@ public:
 	PoseGraph();
 	~PoseGraph();
 	void registerPub(ros::NodeHandle &n);
+	/**
+  * @brief step1:TODO:???根据位姿图序列调整当前帧位姿.
+  * 			   step2:调用detectLoop()函数,获取当前帧的回环id.
+  * 			   step3:调用findConnection()函数,检测回环,计算回环帧在当前关键帧坐标系下的位姿.
+  */
 	void addKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop);
 	void loadKeyFrame(KeyFrame* cur_kf, bool flag_detect_loop);
 	void loadVocabulary(std::string voc_path);
@@ -58,6 +63,8 @@ public:
 
 
 private:
+	//检测keyframe是否存在回环,先在data_base中查找,再把当前keyframe加入数据库,如果匹配数大于1,且高分大于0.05,低分大于0.015,
+	//如果分数满足并且帧数大于50,返回回环idx.
 	int detectLoop(KeyFrame* keyframe, int frame_index);
 	void addKeyFrameIntoVoc(KeyFrame* keyframe);
 	void optimize4DoF();

@@ -212,7 +212,7 @@ void KeyFrame::PnPRANSAC(const vector<cv::Point2f> &matched_2d_old_norm,
     Matrix3d R_w_c = origin_vio_R * qic;
     Vector3d T_w_c = origin_vio_T + origin_vio_R * tic;
 
-    R_inital = R_w_c.inverse();
+    R_inital = R_w_c.inverse(); // T_cur_w
     P_inital = -(R_inital * T_w_c);
 
     cv::eigen2cv(R_inital, tmp_r);
@@ -243,9 +243,9 @@ void KeyFrame::PnPRANSAC(const vector<cv::Point2f> &matched_2d_old_norm,
     }
 
     cv::Rodrigues(rvec, r);
-    Matrix3d R_pnp, R_w_c_old;
+    Matrix3d R_pnp, R_w_c_old; // R_pnp = R_loop_w
     cv::cv2eigen(r, R_pnp);
-    R_w_c_old = R_pnp.transpose();
+    R_w_c_old = R_pnp.transpose(); //回环帧位姿
     Vector3d T_pnp, T_w_c_old;
     cv::cv2eigen(t, T_pnp);
     T_w_c_old = R_w_c_old * (-T_pnp);
